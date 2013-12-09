@@ -5,11 +5,8 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Driver {
@@ -19,11 +16,19 @@ public class Driver {
 	double duration;
 	static String addr = "54.200.55.63";
 	static int port = 59144;
-	static int numOfNodes = 13, totalReq = 65;
+	static int numOfNodes = 20, totalReq = 100;
 	static int numOfReqDone = 0;
 	int[] numOfReq;
-	int[][] quorums, intersections;
+	int[][] quorums, intersections;//specifies all the related intersections of a single node
 	HashSet<Integer> interscts;
+	
+	static double tempEnterCS = 0.0;
+	static double response_time;
+	static double synchronization_delay;
+	static double system_throughput;
+	static ArrayList<Double> intervalCS;
+	static ArrayList<Double> inCS;
+	static ArrayList<Double> responseTime;
 
 	public Driver() {
 		interscts = new HashSet<Integer>();
@@ -41,6 +46,10 @@ public class Driver {
 			int p = (int) (Math.random() * numOfNodes);
 			numOfReq[p] += 1;
 		}
+		
+		intervalCS = new ArrayList<>();
+		responseTime = new ArrayList<>();
+		inCS = new ArrayList<>();
 	}
 
 	public void group() {
@@ -142,7 +151,6 @@ public class Driver {
 
 	public static void printToWeb(String s) {
 		byte[] b = s.getBytes();
-
 		try {
 			DatagramSocket udp = new DatagramSocket();
 			DatagramPacket pkt = new DatagramPacket(b, b.length, InetAddress.getByName(addr), port);
@@ -175,9 +183,9 @@ public class Driver {
 				lists.get(i).add(ps[intersections[i][j]]);
 			}
 		}
-		for (int i = 0;i<numOfReq.length;i++){
-			numOfReq[i] = 5;
-		}
+//		for (int i = 0;i<numOfReq.length;i++){
+//			numOfReq[i] = 5;
+//		}
 		for (int i = 0; i < ps.length; i++) {
 			ps[i].init(i, lists.get(i), numOfReq[i]);
 		}
@@ -196,6 +204,33 @@ public class Driver {
 		duration = (endTime - startTime) / 1000.0;
 	}
 
+	public void printResponseTime() {
+		double total = 0.0;
+		for (int i = 0; i < responseTime.size(); i++){
+			total = total + responseTime.get(i);
+		}
+		response_time = total / responseTime.size();
+		System.out.println(String.format("Response Time: %.3fs.", response_time));
+	}
+	
+	public void printSynchronizationDelay() {
+		double total = 0.0;
+		for (int i = 0; i < intervalCS.size(); i++){
+			total = total + intervalCS.get(i);
+		}
+		synchronization_delay = total;
+		System.out.println(String.format("Synchronization Delay: %.3fs.", synchronization_delay));
+	}
+	
+	public void printSystemThroughput() {
+		double total = 0.0;
+		for (int i = 0; i < inCS.size(); i++){
+			total = total + inCS.get(i);
+		}
+		system_throughput = 1 / (synchronization_delay + total / inCS.size());
+		System.out.println(String.format("System Throughput: %.3f.", system_throughput));
+	}
+	
 	public static void main(String args[]) {
 		Driver d = new Driver();
 		d.group();
@@ -205,6 +240,8 @@ public class Driver {
 		System.out.println("Total Requests: " + Driver.totalReq);
 		System.out.println("Total Messages: " + Driver.msgCount);
 		System.out.println("Total Time: " + String.valueOf(d.duration) + " s.");
-		
+		d.printResponseTime();
+		d.printSynchronizationDelay();
+	    d.printSystemThroughput();
 	}
 }
