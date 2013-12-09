@@ -3,6 +3,8 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.print.attribute.Size2DSyntax;
+
 public class Node implements Runnable {
 	public interface Waitable {
 		public boolean condition();
@@ -21,6 +23,8 @@ public class Node implements Runnable {
 
 	int id = 0;
 	int msgCount = 0;
+	double requestTime = 0.0;
+	double getCSTime = 0.0;
 	static AtomicInteger ts = new AtomicInteger();
 	Queue<Request> lockMsgQue = null;
 	Queue<Request> failMsgQue = null;
@@ -29,6 +33,7 @@ public class Node implements Runnable {
 	int req_quota = 0;
 	ArrayList<Node> intersct = null;
 	public Queue<Request> messageQue = null;
+	double[] timeOfRequest;
 
 	public void init(int id, ArrayList<Node> I, int reqQuota) {
 		this.id = id;
@@ -61,7 +66,7 @@ public class Node implements Runnable {
 	void onFail(Request r) {
 		failMsgQue.add(r);
 	}
-	
+
 	void onInquire(Request r) {
 		if (ReleSent == false) {
 			if (failMsgQue.size() > 0) {
@@ -91,8 +96,7 @@ public class Node implements Runnable {
 						onFail(r);
 					} else if (r.type.equals("inquire")) {
 						onInquire(r);
-					}
-					else {
+					} else {
 						System.out.println("Msg type error.");
 					}
 				}
@@ -102,6 +106,7 @@ public class Node implements Runnable {
 
 	protected void sendMsg(Node n, String type, int ts) {
 		n.messageQue.add(new Request(this, ts, type));
+		
 	}
 
 	public void CS() {
@@ -109,7 +114,8 @@ public class Node implements Runnable {
 		for (Node n : intersct) {
 			sendMsg(n, "request", cur_ts);
 		}
-		Driver.printToWeb(this.id + " requesting CS");
+		requestTime = System.currentTimeMillis() / 1000.0;
+		// Driver.printToWeb(this.id + " requesting CS");
 		System.out.println(this.id + " requesting CS");
 		await(new Waitable() {
 
@@ -118,20 +124,27 @@ public class Node implements Runnable {
 				return lockMsgQue.size() >= intersct.size();
 			}
 		});
-		Driver.printToWeb(this.id + " in CS");
+		// Driver.printToWeb(this.id + " in CS");
 		System.out.println(this.id + " in CS");
+		getCSTime = System.currentTimeMillis() / 1000.0;
+	    Driver.responseTime.add(getCSTime - requestTime);
 		try {
+			if (Driver.tempEnterCS != 0.0) {
+				Driver.intervalCS.add((double) (System.currentTimeMillis() / 1000.0) - Driver.tempEnterCS);
+			}
 			Thread.sleep(100);
+			Driver.tempEnterCS = System.currentTimeMillis() / 1000.0;
 		} catch (InterruptedException e) {
 		}
-		Driver.printToWeb(this.id + " exits CS");
+		// Driver.printToWeb(this.id + " exits CS");
 		System.out.println(this.id + " exits CS");
+		Driver.inCS.add((double) (System.currentTimeMillis() / 1000.0) - getCSTime);
 		for (Node n : intersct) {
 			sendMsg(n, "release", cur_ts);
 		}
 		lockMsgQue.clear();
 		failMsgQue.clear();
-		ReleSent = false;		
+		ReleSent = false;
 		Driver.numOfReqDone++;
 	}
 
